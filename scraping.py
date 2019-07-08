@@ -8,19 +8,13 @@ import spacy
 
 
 increment = 10 # increment of web page
-count = 0# counter
 web_start = 0# web page start number
 web_end = 20# web pahe end number
-titles = [] #LIST OF JOBS TITLE
-companies = [] # LIST OF COMPANIES
-locations = []# LIST OF LOCATIONS
-salaries = []# LIST OF SALARIES
-summaries = []# JOB SUMMARY LIST
-urls = []# url of  jobs
+
 #url = "https://ca.indeed.com/jobs?q=&l=canada&start="#url 
-url_1 = "https://ca.indeed.com/jobs?q="
-url_2 = "&l=Canada&radius=75&start="
-company_name = ['PWC']#,'EY','BDO', 'MNP','Grant Thornton',
+partial_url_1 = "https://ca.indeed.com/jobs?q="
+partial_url_2 = "&l=Canada&radius=75&start="
+company_names = ['PWC']#,'EY','BDO', 'MNP','Grant Thornton',
 #'Accenture','ZS associate','A.T. Kearney','Deloitte','KPMG'
 #'Capgemini','Tata Consultancy Services','Cognizant Technology Solutions',
 #'Cisco Systems Consulting','Infosys Consulting','CGI Group','Mercer LLC',
@@ -40,11 +34,9 @@ company_name = ['PWC']#,'EY','BDO', 'MNP','Grant Thornton',
 #'Samsung Electronics Canada Inc.','Shopify Inc',
 #'Thomson Reuters Canada Limited','Toyota Motor Manufacturing Canada Inc.'
 #]# list of company
-headers = ["Title","Location","Company","Salary", "Summary","url"]
-df = pd.DataFrame(columns = headers)# HEADER OF CSV FILE
 
 
-def job_location(soup): 
+def get_location(soup): 
     """
     Get the job location from a given soup object
     
@@ -52,15 +44,21 @@ def job_location(soup):
         soup: the soup object
         
     Returns:
+        locations: the list contains job location
+        
     """
-    for div in soup.find_all(class_ = 'result'):
+    
+    locations = []
+    
+    for div in soup.find_all(class_='result'):
         
         for city in div.find_all('div',{'class':'recJobLoc'}):
            locations.append(city.get('data-rc-loc'))  
-    return
+           
+    return locations
 
 
-def job_salary(soup): 
+def get_salary(soup): 
     """
     Get the job salary from a given soup object
     
@@ -68,18 +66,24 @@ def job_salary(soup):
         soup: the soup object
         
     Returns:
+        salaries: the list contains salary of the job
+        
     """
-    for div in soup.find_all(class_ = 'result'):
+    
+    salaries = []
+    
+    for div in soup.find_all(class_='result'):
         
         try:
-          salaries.append(div.find('span',{'class':'no-wrap'}).text)
+          salaries.append(div.find('span', {'class':'no-wrap'}).text)
           
-        except:
+        except Exception:
             salaries.append('Nothing_found')
-    return
+            
+    return salaries
 
 
-def job_summary(soup): 
+def get_info(soup): 
    """
     Grab all  job posting links from a Indeed search result page using the given soup object
     
@@ -96,30 +100,43 @@ def job_summary(soup):
         info_page: page contains the job description
     
     Returns:
+        summaries: the list contains job description
+        
+        titles: the list contains job title
+        
+        urls: the list contains link of the job
+        
+        companies: the list contains name of the company
     
    """
+   
+   companies = []
+   titles = []
+   urls = []
+   summaries = []
     
-   for sjcl in soup.find_all('div',{'class':'sjcl'}):
+   for sjcl in soup.find_all('div', {'class':'sjcl'}):
        
-       for company in sjcl.find_all('span',{'class':'company'}):
+       for company in sjcl.find_all('span', {'class':'company'}):
             companies.append(company.text.strip())
             
    for link in soup.find_all('div',{'class':'title'}):
         titles.append(link.a.get('title'))
         partial_url = link.a.get('href')
         
-        full_url = "https://ca.indeed.com/"+partial_url
+        full_url = "https://ca.indeed.com/" + partial_url
         urls.append(full_url)
         
         new_page = requests.get(full_url)
-        new_soup = BeautifulSoup(new_page.text,'lxml')
+        new_soup = BeautifulSoup(new_page.text, 'lxml')
         
-        for description in new_soup.find_all('div',{'class':'jobsearch-jobDescriptionText'}):
+        for description in new_soup.find_all('div', {'class':\
+            'jobsearch-jobDescriptionText'}):
             summaries.append(description.text.strip("\n"))
-   return
+   return summaries, titles, urls, companies
 
 
-def Break_To_Sent(text):
+def break_To_Sent(text):
     '''
     Break text into sentence
     
@@ -129,12 +146,13 @@ def Break_To_Sent(text):
     Return:
         sentences: list of seperated sentence
     '''
+    
     nlp = spacy.load('en')
     doc = nlp(text)
     sentences = []
     
     for sent in doc.sents:
-        sentences.append(sent.string.replace("\n",""))
+        sentences.append(sent.string.replace("\n", ""))
         
     return sentences
     
@@ -150,47 +168,57 @@ def main():
         
     Returns:
     '''
-    for name in company_name:
-        url = url_1 + name + url_2#full url for one of the companies
+    count = 0
+    headers = ["Title","Location","Company","Salary", "Summary","url"]
+    df = pd.DataFrame(columns = headers)
+    
+    for name in company_names:
+        full_url = partial_url_1 + name + partial_url_2
         
         for start in range(web_start, web_end, increment):
-            page = requests.get(url + str(start))
+            page = requests.get(full_url + str(start))
             soup = BeautifulSoup(page.text, 'lxml')
             
-            job_summary(soup)
-            job_salary(soup)
-            job_location(soup)
+            summaries = get_info(soup)[0]
+            titles = get_info(soup)[1]
+            urls = get_info(soup)[2]
+            companies = get_info(soup)[3]
+            salaries = get_salary(soup)
+            locations = get_location(soup)
+    #
+    # append the data to DataFrame
+    for text in summaries:
+        sentences = break_To_Sent(text)
+        first_sentence = sentences[0]
+        #
+        # berak to sentences and append to DataFrame row by row
+        for sent in sentences:
+            df = df.append({"Title":titles[count], \
+                        "Location":locations[count], \
+                        "Company":companies[count], \
+                        "Salary":salaries[count], \
+                        "Summary":first_sentence + '"' + sent + '"', \
+                        "url":urls[count]},
+                        ignore_index=True)
+        #
+        # 2 different jobs will be seperated by white space
+        df = df.append({"Title":" ", \
+                        "Location":" ", \
+                        "Company":" ", \
+                        "Salary":" ", \
+                        "Summary":" ", \
+                        "url": " "},
+                        ignore_index=True)
+        
+        count += 1
+    
+    df.to_csv('C:\\Users\\raymond\\Desktop\\test.csv',index=False)
+    
     return   
 
+if"__name__"== "__main__":
+    main()
 
-main()
-#
-#append the data to DataFrame
-while count < len(urls):
-    sentences = Break_To_Sent(summaries[count])
-    tmp = sentences[0]#the first sentence
-    
-    for sent in sentences:
-        df = df.append({"Title":titles[count],
-                    "Location":locations[count],
-                    "Company":companies[count],
-                    "Salary":salaries[count],
-                    "Summary":tmp + '"' + sent + '"',
-                    "url":urls[count]},
-                    ignore_index=True)
-    # seperate by white space
-    df = df.append({"Title":" ",
-                    "Location":" ",
-                    "Company":" ",
-                    "Salary":" ",
-                    "Summary":" ",
-                    "url": " "},
-                    ignore_index=True)
-    count += 1
-
-df.to_csv('C:\\Users\\raymond\\Desktop\\test.csv',index=False)
-      
-      
     
 
 
