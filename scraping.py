@@ -7,7 +7,7 @@ import pandas as pd
 import spacy
 
 
-increment = 10 # increment of web page
+increment = 10# increment of web page
 web_start = 0# web page start number
 web_end = 20# web pahe end number
 
@@ -52,8 +52,8 @@ def get_location(soup):
     
     for div in soup.find_all(class_='result'):
         
-        for city in div.find_all('div',{'class':'recJobLoc'}):
-           locations.append(city.get('data-rc-loc'))  
+        for city in div.find_all('div', {'class':'recJobLoc'}):
+            locations.append(city.get('data-rc-loc'))  
            
     return locations
 
@@ -114,13 +114,16 @@ def get_info(soup):
    titles = []
    urls = []
    summaries = []
-    
+   #
+   # looking for name of company
    for sjcl in soup.find_all('div', {'class':'sjcl'}):
        
        for company in sjcl.find_all('span', {'class':'company'}):
             companies.append(company.text.strip())
-            
+   #         
+   # looking for job title and link         
    for link in soup.find_all('div',{'class':'title'}):
+       
         titles.append(link.a.get('title'))
         partial_url = link.a.get('href')
         
@@ -129,14 +132,18 @@ def get_info(soup):
         
         new_page = requests.get(full_url)
         new_soup = BeautifulSoup(new_page.text, 'lxml')
-        
-        for description in new_soup.find_all('div', {'class':\
-            'jobsearch-jobDescriptionText'}):
+        #
+        # looking for job description
+        for description in new_soup.find_all('div', {
+                'class':'jobsearch-jobDescriptionText'
+                }):   
+            
             summaries.append(description.text.strip("\n"))
+            
    return summaries, titles, urls, companies
 
 
-def break_To_Sent(text):
+def break_to_sent(text):
     '''
     Break text into sentence
     
@@ -168,14 +175,15 @@ def main():
         
     Returns:
     '''
-    count = 0
     headers = ["Title","Location","Company","Salary", "Summary","url"]
     df = pd.DataFrame(columns = headers)
     
     for name in company_names:
+        
         full_url = partial_url_1 + name + partial_url_2
         
         for start in range(web_start, web_end, increment):
+            
             page = requests.get(full_url + str(start))
             soup = BeautifulSoup(page.text, 'lxml')
             
@@ -187,36 +195,43 @@ def main():
             locations = get_location(soup)
     #
     # append the data to DataFrame
-    for text in summaries:
-        sentences = break_To_Sent(text)
+    for index, text in enumerate(summaries):
+        
+        sentences = break_to_sent(text)
         first_sentence = sentences[0]
         #
         # berak to sentences and append to DataFrame row by row
         for sent in sentences:
-            df = df.append({"Title":titles[count], \
-                        "Location":locations[count], \
-                        "Company":companies[count], \
-                        "Salary":salaries[count], \
-                        "Summary":first_sentence + '"' + sent + '"', \
-                        "url":urls[count]},
-                        ignore_index=True)
+            df = df.append(
+                    {
+                            "Title":titles[index], 
+                            "Location":locations[index], 
+                            "Company":companies[index], 
+                            "Salary":salaries[index], 
+                            "Summary":first_sentence + '"' + sent + '"', 
+                            "url":urls[index]
+                    },
+                    ignore_index=True
+            )
         #
         # 2 different jobs will be seperated by white space
-        df = df.append({"Title":" ", \
-                        "Location":" ", \
-                        "Company":" ", \
-                        "Salary":" ", \
-                        "Summary":" ", \
-                        "url": " "},
-                        ignore_index=True)
+        df = df.append(
+                {
+                        "Title":" ", 
+                        "Location":" ", 
+                        "Company":" ", 
+                        "Salary":" ", 
+                        "Summary":" ", 
+                        "url": " "
+                },
+                ignore_index=True
+        )
         
-        count += 1
-    
-    df.to_csv('C:\\Users\\raymond\\Desktop\\test.csv',index=False)
+    df.to_csv('C:\\Users\\raymond\\Desktop\\test.csv', index=False)
     
     return   
 
-if"__name__"== "__main__":
+if __name__=="__main__":
     main()
 
     
